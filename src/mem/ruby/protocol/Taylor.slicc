@@ -1,0 +1,6 @@
+protocol "Taylor";
+include "RubySlicc_interfaces.slicc";
+include "Taylor-msg.sm";
+include "Taylor-cache.sm";
+include "Taylor-dir.sm";
+include "Taylor-dma.sm";
