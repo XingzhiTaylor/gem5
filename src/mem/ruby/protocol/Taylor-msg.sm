@@ -41,11 +41,13 @@ enumeration(CoherenceRequestType, desc="...") {
   GETF,      desc="Issue exclusive for Flushing";
   BLOCK_ACK, desc="Dir Block ack";
   INV,       desc="Invalidate";
+  REMOTE_INV,         desc="Invalidation from remote store";
 }
 
 // CoherenceResponseType
 enumeration(CoherenceResponseType, desc="...") {
   ACK,                desc="ACKnowledgment, responder does not have a copy";
+  ACK_LOCKED,         desc="ACKnowledgment, CPU0 is locked for remote store";
   ACK_SHARED,         desc="ACKnowledgment, responder has a shared copy";
   DATA,               desc="Data, responder does not have a copy";
   DATA_SHARED,        desc="Data, responder has a shared copy";
@@ -57,12 +59,16 @@ enumeration(CoherenceResponseType, desc="...") {
   UNBLOCK,            desc="Unblock for writeback";
   UNBLOCKS,            desc="Unblock now in S";
   UNBLOCKM,            desc="Unblock now in M/O/E";
+  UNBLOCKRM,           desc="Unblock after remote store, now in M/O/E";
+  REMOTE_DATA,        desc="Data from remote store";
+  REMOTE_LOCK,        desc="Lock cache for remote store";
   NULL,               desc="Null value";
 }
 
 // TriggerType
 enumeration(TriggerType, desc="...") {
   L2_to_L1,            desc="L2 to L1 transfer";
+  L2_to_L1_RM,         desc="L2 to L1 transfer triggered by a remote store";
   ALL_ACKS,            desc="See corresponding event";
   ALL_ACKS_OWNER_EXISTS,desc="See corresponding event";
   ALL_ACKS_NO_SHARERS, desc="See corresponding event";

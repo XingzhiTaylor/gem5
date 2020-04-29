@@ -38,8 +38,8 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
       CacheMemory * probeFilter;
       Cycles from_memory_controller_latency := 2;
       Cycles to_memory_controller_latency := 1;
-      bool probe_filter_enabled := "False";
-      bool full_bit_dir_enabled := "False";
+      bool probe_filter_enabled := "True";
+      bool full_bit_dir_enabled := "True";
 
       MessageBuffer * forwardFromDir, network="To", virtual_network="3",
             vnet_type="forward";
@@ -113,10 +113,12 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
     Unblock,                   desc="An unblock message arrives";
     UnblockS,                   desc="An unblock message arrives";
     UnblockM,                   desc="An unblock message arrives";
+    UnblockRM,                  desc="Unblock the remote store block";
     Writeback_Clean,           desc="The final part of a PutX (no data)";
     Writeback_Dirty,           desc="The final part of a PutX (data)";
     Writeback_Exclusive_Clean, desc="The final part of a PutX (no data, exclusive)";
     Writeback_Exclusive_Dirty, desc="The final part of a PutX (data, exclusive)";
+    REMOTE_INV,              desc="Remote store issued, invalidate all copies";
 
     // Probe filter
     Pf_Replacement,            desc="probe filter replacement";
@@ -299,6 +301,8 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
       return Event:GETX;
     } else if (type == CoherenceRequestType:GETF) {
       return Event:GETF;
+    } else if (type == CoherenceRequestType:REMOTE_INV) {
+      return Event:REMOTE_INV;
     } else {
       error("Invalid CoherenceRequestType");
     }
@@ -349,6 +353,8 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
           trigger(Event:UnblockS, in_msg.addr, pf_entry, tbe);
         } else if (in_msg.Type == CoherenceResponseType:UNBLOCKM) {
           trigger(Event:UnblockM, in_msg.addr, pf_entry, tbe);
+        } else if (in_msg.Type == CoherenceResponseType:UNBLOCKRM) {
+          trigger(Event:UnblockRM, in_msg.addr, pf_entry, tbe);
         } else if (in_msg.Type == CoherenceResponseType:WB_CLEAN) {
           trigger(Event:Writeback_Clean, in_msg.addr, pf_entry, tbe);
         } else if (in_msg.Type == CoherenceResponseType:WB_DIRTY) {
@@ -487,6 +493,20 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
           cache_entry.Sharers.add(machineIDToNodeID(in_msg.Sender));
           APPEND_TRANSITION_COMMENT(cache_entry.Sharers);
           DPRINTF(RubySlicc, "Sharers = %d\n", cache_entry.Sharers);
+        }
+      }
+    }
+  }
+
+  action(uz_updateOwnerToZero, "uz", desc="update owner to cpu 0") {
+    if (probe_filter_enabled || full_bit_dir_enabled) {
+      assert(is_valid(cache_entry)); 
+      peek(unblockNetwork_in, ResponseMsg) {
+        cache_entry.Owner := machineIDZero();
+        if (full_bit_dir_enabled) {
+          cache_entry.Sharers.clear();
+          cache_entry.Sharers.add(intToID(0));
+          APPEND_TRANSITION_COMMENT(cache_entry.Sharers);
         }
       }
     }
@@ -1205,6 +1225,15 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
     }
   }
 
+  action(ss_setSharerToZero, "ss", desc="set sharer to cpu 0") {
+    if (full_bit_dir_enabled) {
+      peek(requestQueue_in, RequestMsg) {
+        cache_entry.Sharers.clear();
+        cache_entry.Sharers.add(intToID(0));
+      }
+    }
+  }
+
   action(l_queueMemoryWBRequest, "lq", desc="Write PUTX data to memory") {
     peek(unblockNetwork_in, ResponseMsg) {
       queueMemoryWrite(in_msg.Sender, address, to_memory_controller_latency,
@@ -1242,7 +1271,7 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
   // TRANSITIONS
 
   // Transitions out of E state
-  transition(E, GETX, NO_B_W) {
+  transition(E, {GETX, REMOTE_INV}, NO_B_W) {
     pfa_probeFilterAllocate;
     v_allocateTBE;
     rx_recordExclusiveInTBE;
@@ -1289,7 +1318,7 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
   }
 
   // Transitions out of O state
-  transition(O, GETX, NO_B_W) {
+  transition(O, {GETX, REMOTE_INV}, NO_B_W) {
     r_setMRU;
     v_allocateTBE;
     r_recordDataInTBE;
@@ -1367,7 +1396,7 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
   }
 
   // Transitions out of NO state
-  transition(NX, GETX, NO_B) {
+  transition(NX, {GETX, REMOTE_INV}, NO_B) {
     r_setMRU;
     fb_forwardRequestBcast;
     cs_clearSharers;
@@ -1382,7 +1411,7 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
   }
 
   // Transitions out of NO state
-  transition(NO, GETX, NO_B) {
+  transition(NO, {GETX, REMOTE_INV}, NO_B) {
     r_setMRU;
     ano_assertNotOwner;
     fc_forwardRequestConditionalOwner;
@@ -1399,7 +1428,7 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
     i_popIncomingRequestQueue;
   }
 
-  transition(S, GETX, NO_B) {
+  transition(S, {GETX, REMOTE_INV}, NO_B) {
     r_setMRU;
     fb_forwardRequestBcast;
     cs_clearSharers;
@@ -1460,7 +1489,7 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
   transition({NO_B_X, O_B, NO_DR_B_W, NO_DW_B_W, NO_B_W, NO_DR_B_D, 
               NO_DR_B, O_DR_B, O_B_W, O_DR_B_W, NO_DW_W, NO_B_S_W,
               NO_W, O_W, WB, WB_E_W, WB_O_W, O_R, S_R, NO_R, NO_F_W}, 
-             {GETS, GETX, GETF, PUT, Pf_Replacement}) {
+             {GETS, GETX, GETF, PUT, Pf_Replacement, REMOTE_INV}) {
     z_stallAndWaitRequest;
   }
 
@@ -1472,11 +1501,11 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
     z_stallAndWaitRequest;
   }
 
-  transition(NO_B, {PUT, Pf_Replacement}) {
+  transition(NO_B, {PUT, Pf_Replacement, REMOTE_INV}) {
     z_stallAndWaitRequest;
   }
 
-  transition(NO_B_S, {GETX, GETF, PUT, Pf_Replacement}) {
+  transition(NO_B_S, {GETX, GETF, PUT, Pf_Replacement, REMOTE_INV}) {
     z_stallAndWaitRequest;
   }
 
@@ -1513,6 +1542,12 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
     j_popIncomingUnblockQueue;
   }
 
+  transition({NO_B, NO_B_X}, UnblockRM, NO) {
+    uz_updateOwnerToZero;
+    j_popIncomingUnblockQueue;
+    k_wakeUpDependents;
+  }
+
   transition(NO_B_S, UnblockS, NO_B_S_W) {
     us_updateSharerIfFBD;
     fr_forwardMergeReadRequestsToOwner;
@@ -1522,6 +1557,13 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
 
   transition(NO_B_S, UnblockM, NO_B_S_W) {
     uo_updateOwnerIfPf;
+    fr_forwardMergeReadRequestsToOwner;
+    sp_setPendingMsgsToMergedSharers;
+    j_popIncomingUnblockQueue;
+  }
+
+  transition(NO_B_S, UnblockRM, NO_B_S_W) {
+    uz_updateOwnerToZero;
     fr_forwardMergeReadRequestsToOwner;
     sp_setPendingMsgsToMergedSharers;
     j_popIncomingUnblockQueue;
@@ -1551,6 +1593,13 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
     uo_updateOwnerIfPf;
     k_wakeUpDependents;
     j_popIncomingUnblockQueue;
+  }
+
+  transition(O_B, UnblockRM, NO) {
+    uz_updateOwnerToZero;
+    w_deallocateTBE;
+    j_popIncomingUnblockQueue;
+    k_wakeUpDependents;
   }
 
   transition(NO_B_W, Memory_Data, NO_B) {
@@ -1791,6 +1840,11 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
 
   transition(NO_B_W, UnblockM, NO_W) {
     uo_updateOwnerIfPf;
+    j_popIncomingUnblockQueue;
+  }
+
+  transition(NO_B_W, UnblockRM, NO_W) {
+    uz_updateOwnerToZero;
     j_popIncomingUnblockQueue;
   }
 

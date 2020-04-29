@@ -46,3 +46,6 @@ Addr makeNextStrideAddress(Addr addr, int stride);
 structure(BoolVec, external="yes") {
 }
 int countBoolVec(BoolVec bVec);
+int getNodeID(MachineID machineID);
+bool isInAddrRange(Addr addr);
+MachineID machineIDZero();

@@ -44,9 +44,14 @@ from __future__ import absolute_import
 import m5
 from m5.defines import buildEnv
 from m5.objects import *
+from m5.util import addToPath
+import os, optparse, sys
 
-from .Benchmarks import *
-from . import ObjectList
+addToPath('../')
+addToPath('.')
+
+from common import Benchmarks
+from common import ObjectList
 
 vio_9p_help = """\
 Enable the Virtio 9P device and set the path to share. The default 9p path is
@@ -168,7 +173,7 @@ def addCommonOptions(parser):
     parser.add_option("--list-cpu-types",
                       action="callback", callback=_listCpuTypes,
                       help="List available CPU types")
-    parser.add_option("--cpu-type", type="choice", default="AtomicSimpleCPU",
+    parser.add_option("--cpu-type", type="choice", default="TimingSimpleCPU",
                       choices=ObjectList.cpu_list.get_names(),
                       help = "type of cpu to run with")
     parser.add_option("--list-bp-types",
@@ -322,7 +327,7 @@ def addCommonOptions(parser):
     parser.add_option("--work-cpus-checkpoint-count", action="store", type="int",
                       help="checkpoint and exit when active cpu count is reached")
     parser.add_option("--restore-with-cpu", action="store", type="choice",
-                      default="AtomicSimpleCPU",
+                      default="TimingSimpleCPU",
                       choices=ObjectList.cpu_list.get_names(),
                       help = "cpu type for restoring from a checkpoint")
 

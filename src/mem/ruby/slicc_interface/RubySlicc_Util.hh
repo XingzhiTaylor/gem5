@@ -183,4 +183,25 @@ countBoolVec(BoolVec bVec)
     return count;
 }
 
+inline int
+getNodeID(MachineID machineID)
+{
+    return (int)(machineID.getNum());
+}
+
+inline bool
+isInAddrRange(Addr addr)
+{
+    // this is for direct test of 1,000,000 transactions
+    // change back when testing with application
+    return (addr >= 0x100);
+    // return (addr < 0xffff0000 && addr >= 0x80000000);
+}
+
+inline MachineID
+machineIDZero()
+{
+    return MachineID(MachineType_L1Cache, 0);
+}
+
 #endif //__MEM_RUBY_SLICC_INTERFACE_RUBYSLICC_UTIL_HH__
