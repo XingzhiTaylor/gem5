@@ -104,7 +104,6 @@ machine(MachineType:L1Cache, "AMD Hammer-like protocol")
     ORM_LW, AccessPermission:Read_Only, "ORM^LW", desc="Issued Remote Store, waiting for lock acks";
     MRM_LW, AccessPermission:Read_Only, "MRM^LW", desc="Issued Remote Store, waiting for lock acks";
     ISRM, AccessPermission:Read_Only, "ISRM", desc="Issued Remote Store, Received data";
-    IRM_W, AccessPermission:Read_Write, "MM^W", desc="Issued Remote Store, received exclusive data";
     IL, AccessPermission:Busy, "IL", desc="Locked for remote data";
     SL, AccessPermission:Read_Only, "SL", desc="Locked for remote data";
     OL, AccessPermission:Read_Only, "OL", desc="Locked for remote data";
@@ -1547,11 +1546,11 @@ machine(MachineType:L1Cache, "AMD Hammer-like protocol")
     zz_stallAndWaitMandatoryQueue;
   }
 
-  transition({M_W, MM_W, IRM_W}, {L2_Replacement, Flush_line, Remote_Store}) {
+  transition({M_W, MM_W}, {L2_Replacement, Flush_line, Remote_Store}) {
     zz_stallAndWaitMandatoryQueue;
   }
 
-  transition({M_W, MM_W, IRM_W}, L2_Replacement_RM) {
+  transition({M_W, MM_W}, L2_Replacement_RM) {
     za_stallAndWaitResponseInQueue;
   }
 
@@ -1559,11 +1558,11 @@ machine(MachineType:L1Cache, "AMD Hammer-like protocol")
     zz_stallAndWaitMandatoryQueue;
   }
 
-  transition({IM, SM, ISM, OM, IS, SS, MM_W, M_W, IRM_W, OI, MI, II, SRM, IRM, ORM, SRM_LW, IRM_LW, ORM_LW, MRM_LW, MRM, ISRM, IL, SL, OL, ML, ST, OT, MT, MMT, IM_F, SM_F, ISM_F, OM_F, MM_WF, MI_F, MM_F, IR, SR, OR, MR, MMR}, L1_to_L2) {
+  transition({IM, SM, ISM, OM, IS, SS, MM_W, M_W, OI, MI, II, SRM, IRM, ORM, SRM_LW, IRM_LW, ORM_LW, MRM_LW, MRM, ISRM, IL, SL, OL, ML, ST, OT, MT, MMT, IM_F, SM_F, ISM_F, OM_F, MM_WF, MI_F, MM_F, IR, SR, OR, MR, MMR}, L1_to_L2) {
     zz_stallAndWaitMandatoryQueue;
   }
 
-  transition({IM, SM, ISM, OM, IS, SS, MM_W, M_W, IRM_W, OI, MI, II, IL, SL, OL, ML, ST, OT, MT, MMT, IM_F, SM_F, ISM_F, OM_F, MM_WF, MI_F, MM_F, IR, SR, OR, MR, MMR}, L1_to_L2_RM) {
+  transition({IM, SM, ISM, OM, IS, SS, MM_W, M_W, OI, MI, II, IL, SL, OL, ML, ST, OT, MT, MMT, IM_F, SM_F, ISM_F, OM_F, MM_WF, MI_F, MM_F, IR, SR, OR, MR, MMR}, L1_to_L2_RM) {
     za_stallAndWaitResponseInQueue;
   }
 
@@ -1901,10 +1900,6 @@ machine(MachineType:L1Cache, "AMD Hammer-like protocol")
     n_popResponseQueue;
   }
 
-  transition(IRM, {All_acks, All_acks_no_sharers}, IRM_W) {
-    j_popTriggerQueue;
-  }
-
   transition(ISRM, Ack) {
     m_decrementNumberOfMessages;
     o_checkForCompletion;
@@ -1917,14 +1912,6 @@ machine(MachineType:L1Cache, "AMD Hammer-like protocol")
     s_deallocateTBE;
     j_popTriggerQueue;
     kd_wakeUpDependents;
-  }
-
-  transition(IRM_W, {Data, Exclusive_Data}, I) {
-    uf_writeDataToCacheTBE;
-    srm_remote_store_hit;
-    er_sendDataRemoteStore;
-    s_deallocateTBE;
-    n_popResponseQueue;
   }
 
   // Transitions from Shared
